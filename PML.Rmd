@@ -1,0 +1,99 @@
+---
+title: "PML"
+author: "Yan Feng"
+date: "July 11, 2017"
+output: 
+  md_document:
+    variant: markdown_github
+---
+
+## Practical Machine Learning Assignment
+
+### Overview
+
+The data collect information from accelerometers on the belt, forearm, arm, and
+dumbell while doing 5 different ways. The goal is to predict the manner people
+exercise throught the accelerometer readings.
+
+### Analysis
+
+- Load and clean data
+
+The training and testing files are downloaded from the course website and saved
+in the working directory. 
+
+```{r load}
+pml.train <- read.csv("pml-training.csv", na.strings = c("NA", ""))
+pml.test <- read.csv("pml-testing.csv", na.strings = c("NA", ""))
+str(pml.train)
+```
+
+The first 6 columns are user ID, name and timestamp, and are deleted
+
+```{r remove}
+pml.train <- pml.train[, c(-6:-1)]
+pml.test <- pml.test[, c(-6:-1)]
+```
+
+Since many columns contain NA that has no information, only columns with all
+non-NA data are kept.
+
+```{r keep}
+pml.train <- pml.train[, apply(!is.na(pml.train), 2, all)]
+pml.test <- pml.test[, apply(!is.na(pml.test), 2, all)]
+```
+
+- Modeling
+
+This is a classification problem. 
+
+Random forest is used to model the data. Cross validation of 5 fold is used to 
+tune the model
+
+Initially, all sample are used to fit the model, but it takes very long time.
+
+The training data is split into 2 sets: one for the train (10%), and the other
+for the testing (90%).
+
+```{r split}
+library(caret)
+InTrain <- createDataPartition(y = pml.train$classe, p = 0.1, list = FALSE)
+pml.train.1 <- pml.train[InTrain, ]
+pml.train.2 <- pml.train[-InTrain,]
+```
+
+Fit random forest model with cross validation of 5 fold
+```{r fit, cache=TRUE}
+library(randomForest)
+model.rf <- train(classe ~., data = pml.train.1, method = "rf", trControl = trainControl(method = "cv", number = 5), prox = TRUE, allowParallel = TRUE)
+print(model.rf)
+```
+
+The final model uses mtry of 27. The accuray is 95.4%.
+
+Use this model for the testing data.
+```{r test}
+pred <- predict(model.rf, pml.train.2)
+sum(pred == factor(pml.train.2$classe)) / length(pred)
+```
+
+The testing accuracy is 96.0%
+
+- Predict new data
+
+```{r predict}
+pred.new <- predict(model.rf, pml.test)
+pred.new
+```
+
+- plot of 2 featurs, roll_dumbbell and pitch_dumbbell, of the new data 
+
+```{r plot}
+qplot(roll_dumbbell, pitch_dumbbell, col = pred.new, data = pml.test) + geom_point()
+```
+
+### Conclusion
+
+1. The data is fit into a random forest model
+2. The accuracy is 95.4% for the training set and 96.0% for the testing set
+3. New data set is predicted
